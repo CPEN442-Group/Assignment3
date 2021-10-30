@@ -153,13 +153,14 @@ class Assignment3VPN:
                     self._AppendLog("RECEIVER_THREAD: Received empty message")
                     break
 
+                self._AppendMessage("Other: {}".format(cipher_text.decode()))
                 # Checking if the received message is part of your protocol
                 # TODO: MODIFY THE INPUT ARGUMENTS AND LOGIC IF NECESSARY
                 if self.prtcl.IsMessagePartOfProtocol(cipher_text.decode()) and not self.secure:
                     # Disabling the button to prevent repeated clicks
                     self.secureButton["state"] = "disabled"
                     # Processing the protocol message
-                    handshakeProgress = self.prtcl.ProcessReceivedProtocolMessage(cipher_text.decode())
+                    handshakeProgress = self.prtcl.ProcessReceivedProtocolMessage(cipher_text)
                     if handshakeProgress == 1:
                         reply = self.prtcl.GetProtocolReplyMessage(self.sharedSecret.get())
                         self._SendMessage(reply)
@@ -175,8 +176,9 @@ class Assignment3VPN:
                     self._AppendMessage("Other: {}".format(plain_text.decode()))
                 # Otherwise, decrypting and showing the message
                 else:
-                    plain_text = cipher_text
-                    self._AppendMessage("Other: {}".format(plain_text.decode()))
+                    val=1
+                    #plain_text = cipher_text
+                    #self._AppendMessage("Other: {}".format(plain_text.decode()))
                     
             except Exception as e:
                 self._AppendLog("RECEIVER_THREAD: Error receiving data: {}".format(str(e)))

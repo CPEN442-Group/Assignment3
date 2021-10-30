@@ -13,7 +13,8 @@ class Protocol:
         self.publicKey = self.diffieHellman.gen_public_key()
         self.sharedSecret = 'HI689V8W8VPS1LA894FUX5U892'
         self.sessionKey = None
-        self.Msgs = None
+        self.Msg1 = None
+        self.Msg2 = None
         pass
 
 
@@ -23,30 +24,33 @@ class Protocol:
         h = hashlib.sha3_256()
         h.update(bytearray(sharedSecret, 'utf-8'))
         self.sessionKey = h.digest()
-
         msg = str("CLIENT"+secrets.token_hex(128))
+        self.Msg1=msg
         return msg
 
     def GetProtocolReplyMessage(self, sharedSecret):
         h = hashlib.sha3_256()
-        h.update(bytearray(sharedSecret, 'utf-8'))
+        h.update(bytes(sharedSecret, 'utf-8'))
         self.sessionKey = h.digest()
         
         hM = hashlib.sha3_256()
-        hM.update(bytearray(self.Msgs))
+        hM.update(bytes(self.Msg1,encoding="utf-8"))
         prevHash = hM.digest()
-        
-        encrypt, tag = EncryptAndProtectMessage(bytearray(self.publicKey, prevHash))
-
-        msg = str("SERVER"+secrets.token_hex(128)+encrypt)
+        print("here2")
+        protected = bytes(str(self.publicKey)+str(prevHash),encoding="utf-8")
+        encrypt, tag = Protocol.EncryptAndProtectMessage(self,protected)
+        print("here3")
+        msg = str("SERVER"+secrets.token_hex(128)+str(encrypt)+str(tag))
+        self.Msg2=msg
+        print("here4")
         return msg
 
     def GetProtocolAckMessage(self):
         h = hashlib.sha3_256()
-        h.update(bytearray("CLIENT",Ra))
-        ackMsg = bytearray(self.publicKey)
-        dh=EncryptAndProtectMessage()
-        helps = bytearray("ACKNOW"+1)
+        h.update(bytearray("CLIENT",Ra, encoding="utf-8"))
+        ackMsg = bytearray(self.publicKey,encoding="utf-8")
+        dh=Protocol.EncryptAndProtectMessage()
+        helps = bytearray("ACKNOW",1, encoding="utf-8")
         self.sessionKey = h.digest()
         return msg
 
@@ -65,19 +69,26 @@ class Protocol:
     def ProcessReceivedProtocolMessage(self, message):
         publicKey = None
         handshakeProgress = 0
-        msg=message[0:6]
-        if msg=="CLIENT":
-            remain=message[6:]
+        decoded = message.decode()
+        prefix=decoded[0:6]
+        print("here1")
+        if prefix=="CLIENT":
+            print("hera")
+            self.Msg1=message
+            remain=decoded[6:]
             Ra=remain
             handshakeProgress = 1
-        elif msg=="SERVER":
-            remain=message[1]
-            print(remain)
-            replied=Protocol.DecryptAndVerifyMessage(message[2])
+        elif prefix=="SERVER":
+            self.Msg2=message
+            remain=decoded[6:]
+            Rb=remain[0:256]
+            print("here")
+            replied=Protocol.DecryptAndVerifyMessage(self, remain[256:])
+            print(replied)
             publicKey=replied[0]
             handshakeProgress = 2
-        elif msg=="ACKNOW":
-            acknowledge=Protocol.DecryptAndVerifyMessage(message[1])
+        elif prefix=="ACKNOW":
+            acknowledge=Protocol.DecryptAndVerifyMessage(self, message[1])
             publicKey=acknowledge[0]
             handshakeProgress = 3
 

@@ -156,7 +156,7 @@ class Assignment3VPN:
                 self._AppendMessage("Other: {}".format(cipher_text.decode()))
                 # Checking if the received message is part of your protocol
                 # TODO: MODIFY THE INPUT ARGUMENTS AND LOGIC IF NECESSARY
-                if self.prtcl.IsMessagePartOfProtocol(cipher_text.decode()) and not self.secure:
+                if self.prtcl.IsMessagePartOfProtocol(cipher_text) and not self.secure:
                     # Disabling the button to prevent repeated clicks
                     self.secureButton["state"] = "disabled"
                     # Processing the protocol message

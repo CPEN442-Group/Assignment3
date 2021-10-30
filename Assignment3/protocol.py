@@ -20,8 +20,8 @@ class Protocol:
         self.Msg1 = None
         self.Msg2 = None
 
-        a = Protocol.EncryptAndProtectMessage(self,bytes('testmsg',encoding='utf-8'), 20)
-        x = Protocol.DecryptAndVerifyMessage(self, a, 20)
+        a = Protocol.EncryptAndProtectMessage(self,bytes('testmsg',encoding='utf-8'), 'abc')
+        x = Protocol.DecryptAndVerifyMessage(self, a, 'abc')
 
         pass
 
@@ -32,7 +32,7 @@ class Protocol:
         h = hashlib.sha3_256()
         h.update(bytearray(sharedSecret, 'utf-8'))
         self.sessionKey = h.digest()
-
+        
         self.Ra = secrets.token_hex(128)
         msg = str("CLIENT"+'|'+self.Ra)
         self.Msg1=msg
@@ -46,10 +46,10 @@ class Protocol:
         hM = hashlib.sha3_256()
         hM.update(bytes(str(self.Msg1),encoding="utf-8"))
         prevHash = hM.digest()
-
+        
         encrypt = Protocol.EncryptAndProtectMessage(self,bytes(str(self.publicKey)+str(prevHash),encoding="utf-8"),self.Ra)
         self.Rb = secrets.token_hex(128)
-        msg = str("SERVER"+'|'+self.Rb+'|'+str(encrypt))
+        msg = str("SERVER"+'|'+self.Rb+'|'+encrypt)
         self.Msg2=msg
         return msg
 
@@ -60,15 +60,16 @@ class Protocol:
         prevHash = hM.digest()
 
         encrypt = Protocol.EncryptAndProtectMessage(self,bytes(str(self.publicKey)+str(prevHash),encoding="utf-8"),self.Rb)
-        msg = str("ACK"+'|'+str(encrypt))
+        msg = str("ACK"+'|'+encrypt)
         return msg
 
 
     # Checking if a received message is part of your protocol (called from app.py)
     # TODO: IMPLMENET THE LOGIC
     def IsMessagePartOfProtocol(self, message):
-        msg=message.split('|')
-        if msg[0]=="CLIENT" or msg[0]=="SERVER" or msg[0]=="ACKNOW":
+        decode=message.decode()
+        msg=decode.split('|')
+        if msg[0]=="CLIENT" or msg[0]=="SERVER" or msg[0]=="ACK":
             return True
         return False
 
@@ -86,6 +87,7 @@ class Protocol:
             self.Msg1=str(message)
             self.Ra = split[1]
             handshakeProgress = 1
+
         elif split[0]=="SERVER":
             self.Msg2=str(message)
             self.Rb = split[1]
@@ -96,7 +98,8 @@ class Protocol:
             if Protocol.hashCheck(self,replied[1],1):
                 handshakeProgress = 2
             else:
-                raise RuntimeError('Failed to authenticate')
+                raise RuntimeError('Hash failed to authenticate')
+
         elif split[0]=="ACKNOW":
             acknowledge=Protocol.DecryptAndVerifyMessage(self, split[1], self.Rb)
             print(acknowledge)
@@ -104,7 +107,7 @@ class Protocol:
             if Protocol.hashCheck(self,acknowledge[1],2):
                 handshakeProgress = 3
             else:
-                raise RuntimeError('Failed to authenticate')
+                raise RuntimeError('Hash failed to authenticate')
 
         if not publicKey==None:
             sessionKey = self.diffieHellman.gen_shared_key(publicKey)
@@ -120,7 +123,7 @@ class Protocol:
     # TODO: IMPLEMENT ENCRYPTION WITH THE SESSION KEY (ALSO INCLUDE ANY NECESSARY INFO IN THE ENCRYPTED MESSAGE FOR INTEGRITY PROTECTION)
     # RETURN AN ERROR MESSAGE IF INTEGRITY VERITIFCATION OR AUTHENTICATION FAILS
     def EncryptAndProtectMessage(self, plain_text, R):
-        cipher = AES.new(self.sessionKey, AES.MODE_EAX, nonce=bytes(R))
+        cipher = AES.new(self.sessionKey, AES.MODE_EAX, nonce=bytes(R,encoding='utf-8'))
         cipher_text, tag = cipher.encrypt_and_digest(plain_text)
         return str(base64.b64encode(cipher_text)+base64.b64encode(tag), "utf-8")
 
@@ -131,7 +134,7 @@ class Protocol:
     def DecryptAndVerifyMessage(self, cipher_text, R):
         #will probs need to check hash for integrity
         try:
-            cipher = AES.new(self.sessionKey, AES.MODE_EAX, nonce=bytes(R)) #in documentation, this also took in a nonce
+            cipher = AES.new(self.sessionKey, AES.MODE_EAX, nonce=bytes(R,encoding='utf-8')) #in documentation, this also took in a nonce
             bytestream=bytes(cipher_text,encoding='utf-8')
             tag = base64.b64decode(bytestream[-24:])
             withoutTag = base64.b64decode(bytestream[:-24])

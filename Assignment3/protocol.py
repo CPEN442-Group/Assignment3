@@ -24,7 +24,7 @@ class Protocol:
         h = hashlib.sha3_256()
         h.update(bytearray(sharedSecret, 'utf-8'))
         self.sessionKey = h.digest()
-        msg = str("CLIENT"+secrets.token_hex(128))
+        msg = str("CLIENT"+'|'+secrets.token_hex(128))
         self.Msg1=msg
         return msg
 
@@ -34,15 +34,12 @@ class Protocol:
         self.sessionKey = h.digest()
         
         hM = hashlib.sha3_256()
-        hM.update(bytes(self.Msg1,encoding="utf-8"))
+        hM.update(bytes(str(self.Msg1),encoding="utf-8"))
         prevHash = hM.digest()
-        print("here2")
-        protected = bytes(str(self.publicKey)+str(prevHash),encoding="utf-8")
-        encrypt, tag = Protocol.EncryptAndProtectMessage(self,protected)
-        print("here3")
-        msg = str("SERVER"+secrets.token_hex(128)+str(encrypt)+str(tag))
+
+        encrypt, tag = Protocol.EncryptAndProtectMessage(self,bytes(str(self.publicKey)+str(prevHash),encoding="utf-8"))
+        msg = str("SERVER"+'|'+secrets.token_hex(128)+'|'+str(encrypt)+str(tag))
         self.Msg2=msg
-        print("here4")
         return msg
 
     def GetProtocolAckMessage(self):
@@ -52,14 +49,15 @@ class Protocol:
         dh=Protocol.EncryptAndProtectMessage()
         helps = bytearray("ACKNOW",1, encoding="utf-8")
         self.sessionKey = h.digest()
+        msg = str('sdf')
         return msg
 
 
     # Checking if a received message is part of your protocol (called from app.py)
     # TODO: IMPLMENET THE LOGIC
     def IsMessagePartOfProtocol(self, message):
-        msg=message[0:6]
-        if msg=="CLIENT" or msg=="SERVER" or msg=="ACKNOW":
+        msg=message.split('|')
+        if msg[0]=="CLIENT" or msg[0]=="SERVER" or msg[0]=="ACKNOW":
             return True
         return False
 
@@ -70,25 +68,27 @@ class Protocol:
         publicKey = None
         handshakeProgress = 0
         decoded = message.decode()
-        prefix=decoded[0:6]
-        print("here1")
-        if prefix=="CLIENT":
-            print("hera")
-            self.Msg1=message
-            remain=decoded[6:]
-            Ra=remain
+        split=decoded.split('|')
+        print(split)
+        
+        if split[0]=="CLIENT":
+            self.Msg1=str(message)
+            Ra = split[1]
             handshakeProgress = 1
-        elif prefix=="SERVER":
-            self.Msg2=message
-            remain=decoded[6:]
-            Rb=remain[0:256]
-            print("here")
-            replied=Protocol.DecryptAndVerifyMessage(self, remain[256:])
+        elif split[0]=="SERVER":
+            self.Msg2=str(message)
+            Rb = split[1]
+            e = split[2]
+            print("msg2")
+            print(e)
+            print(len(e))
+            replied=Protocol.DecryptAndVerifyMessage(self, e)
             print(replied)
             publicKey=replied[0]
             handshakeProgress = 2
-        elif prefix=="ACKNOW":
-            acknowledge=Protocol.DecryptAndVerifyMessage(self, message[1])
+        elif split[0]=="ACKNOW":
+            acknowledge=Protocol.DecryptAndVerifyMessage(self, bytes(split[1], encoding="utf-8"))
+            print(acknowledge)
             publicKey=acknowledge[0]
             handshakeProgress = 3
 

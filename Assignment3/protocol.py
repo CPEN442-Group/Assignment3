@@ -10,7 +10,7 @@ class Protocol:
     def __init__(self):
         self.diffieHellman = pyDH.DiffieHellman()
         self.publicKey = self.diffieHellman.gen_public_key()
-        self.sharedSecret = HI689V8W8VPS1LA894FUX5U892
+        self.sharedSecret = 'HI689V8W8VPS1LA894FUX5U892'
         self.sessionKey = None
         pass
 

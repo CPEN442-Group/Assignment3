@@ -36,13 +36,13 @@ class Protocol:
     # THROW EXCEPTION IF AUTHENTICATION FAILS
     def ProcessReceivedProtocolMessage(self, message, tag):
         decryptedMessage = Protocol.DecryptAndVerifyMessage(self, message, tag)
-        
-        # need to check rest of message in order to authenticate, idk how
-
 
         # 256 characters in libary generated diffie hellmans
         if len(decryptedMessage) > 256 :
-            publicKey = "this is temp string, to be extracted from message"
+            restOfMessage = decryptedMessage[257:(len(decryptedMessage)-1)]
+            # Authenticate by comparting rest of message with some other record of them?
+            
+            publicKey = decryptedMessage[0:256]
             sessionKey = self.diffieHellman.gen_shared_key(publicKey)
             Protocol.SetSessionKey(self, sessionKey)
     

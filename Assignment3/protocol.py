@@ -98,3 +98,5 @@ class Protocol:
             binarySection = binary[i:i + 7]
             decimalVal = int(binarySection, 2)
             stringOut = stringOut + chr(decimalVal)
+        
+        return stringOut

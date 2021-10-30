@@ -1,4 +1,5 @@
 # system imports
+from mmap import ACCESS_DEFAULT
 import sys
 import socket
 from threading import Thread
@@ -38,7 +39,8 @@ class Assignment3VPN:
         self.port = None
         self.sharedSecret = None
         self.textMessage = None
-        builder.import_variables(self, ['mode', 'hostName', 'port', 'sharedSecret', 'textMessage'])               
+        self.secure = False
+        builder.import_variables(self, ['mode', 'hostName', 'port', 'sharedSecret', 'textMessage', 'secure'])               
         builder.connect_callbacks(self)
         
         # Network socket and connection
@@ -85,8 +87,10 @@ class Assignment3VPN:
         if self._CreateTCPConnection():
             if self.mode.get() == 0:
                 # enable the secure and send buttons
-                if self.mode == 0:
+                if self.mode.get() == 0:
                     self.secureButton["state"] = "enable"
+                else:
+                    self.secureButton["state"] = "disable"
                 self.sendButton["state"] = "enable"
         else:
             # Change button states
@@ -151,15 +155,27 @@ class Assignment3VPN:
 
                 # Checking if the received message is part of your protocol
                 # TODO: MODIFY THE INPUT ARGUMENTS AND LOGIC IF NECESSARY
-                if self.prtcl.IsMessagePartOfProtocol(cipher_text):
+                if self.prtcl.IsMessagePartOfProtocol(cipher_text.decode()) and not self.secure:
                     # Disabling the button to prevent repeated clicks
                     self.secureButton["state"] = "disabled"
                     # Processing the protocol message
-                    self.prtcl.ProcessReceivedProtocolMessage(cipher_text)
+                    handshakeProgress = self.prtcl.ProcessReceivedProtocolMessage(cipher_text.decode())
+                    if handshakeProgress == 1:
+                        reply = self.prtcl.GetProtocolReplyMessage(self.sharedSecret.get())
+                        self._SendMessage(reply)
+                    elif handshakeProgress == 2:
+                        reply = self.prtcl.GetProtocolAckMessage()
+                        self._SendMessage(reply)
+                    elif handshakeProgress == 3:
+                        self.secure=True
 
-                # Otherwise, decrypting and showing the messaage
+                
+                if self.secure:
+                    self.prtcl.DecryptAndVerifyMessage(cipher_text)
+                    self._AppendMessage("Other: {}".format(plain_text.decode()))
+                # Otherwise, decrypting and showing the message
                 else:
-                    plain_text = self.prtcl.DecryptAndVerifyMessage(cipher_text)
+                    plain_text = cipher_text
                     self._AppendMessage("Other: {}".format(plain_text.decode()))
                     
             except Exception as e:
@@ -170,8 +186,12 @@ class Assignment3VPN:
     # Send data to the other party
     def _SendMessage(self, message):
         plain_text = message
-        cipher_text = self.prtcl.EncryptAndProtectMessage(plain_text)
-        self.conn.send(cipher_text.encode())
+        if self.secure:
+            cipher_text, tag = self.prtcl.EncryptAndProtectMessage(plain_text)
+            self.conn.send(cipher_text.encode(),tag.encode())
+        else:
+            self.conn.send(plain_text.encode())
+        
             
 
     # Secure connection with mutual authentication and key establishment
@@ -180,7 +200,7 @@ class Assignment3VPN:
         self.secureButton["state"] = "disabled"
 
         # TODO: THIS IS WHERE YOU SHOULD IMPLEMENT THE START OF YOUR MUTUAL AUTHENTICATION AND KEY ESTABLISHMENT PROTOCOL, MODIFY AS YOU SEEM FIT
-        init_message = self.prtcl.GetProtocolInitiationMessage()
+        init_message = self.prtcl.GetProtocolInitiationMessage(self.sharedSecret.get())
         self._SendMessage(init_message)
 
 

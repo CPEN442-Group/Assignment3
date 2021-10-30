@@ -13,91 +13,102 @@ class Protocol:
         self.publicKey = self.diffieHellman.gen_public_key()
         self.sharedSecret = 'HI689V8W8VPS1LA894FUX5U892'
         self.sessionKey = None
+        self.Msgs = None
         pass
 
 
     # Creating the initial message of your protocol (to be send to the other party to bootstrap the protocol)
     # TODO: IMPLEMENT THE LOGIC (MODIFY THE INPUT ARGUMENTS AS YOU SEEM FIT)
-    def GetProtocolInitiationMessage(self):
-        initialize = ["CLIENT"]
-        initialize.append(secrets.token_bytes(128))
-        return initialize
+    def GetProtocolInitiationMessage(self, sharedSecret):
+        h = hashlib.sha3_256()
+        h.update(bytearray(sharedSecret, 'utf-8'))
+        self.sessionKey = h.digest()
+
+        msg = str("CLIENT"+secrets.token_hex(128))
+        return msg
+
+    def GetProtocolReplyMessage(self, sharedSecret):
+        h = hashlib.sha3_256()
+        h.update(bytearray(sharedSecret, 'utf-8'))
+        self.sessionKey = h.digest()
+        
+        hM = hashlib.sha3_256()
+        hM.update(bytearray(self.Msgs))
+        prevHash = hM.digest()
+        
+        encrypt, tag = EncryptAndProtectMessage(bytearray(self.publicKey, prevHash))
+
+        msg = str("SERVER"+secrets.token_hex(128)+encrypt)
+        return msg
+
+    def GetProtocolAckMessage(self):
+        h = hashlib.sha3_256()
+        h.update(bytearray("CLIENT",Ra))
+        ackMsg = bytearray(self.publicKey)
+        dh=EncryptAndProtectMessage()
+        helps = bytearray("ACKNOW"+1)
+        self.sessionKey = h.digest()
+        return msg
 
 
     # Checking if a received message is part of your protocol (called from app.py)
     # TODO: IMPLMENET THE LOGIC
     def IsMessagePartOfProtocol(self, message):
-        if message[0]=="CLIENT":
+        msg=message[0:6]
+        if msg=="CLIENT" or msg=="SERVER" or msg=="ACKNOW":
             return True
         return False
 
     # Processing protocol message
     # TODO: IMPLMENET THE LOGIC (CALL SetSessionKey ONCE YOU HAVE THE KEY ESTABLISHED)
     # THROW EXCEPTION IF AUTHENTICATION FAILS
-    def ProcessReceivedProtocolMessage(self, message, tag):
-        decryptedMessage = Protocol.DecryptAndVerifyMessage(self, message, tag)
+    def ProcessReceivedProtocolMessage(self, message):
+        publicKey = None
+        handshakeProgress = 0
+        msg=message[0:6]
+        if msg=="CLIENT":
+            remain=message[6:]
+            Ra=remain
+            handshakeProgress = 1
+        elif msg=="SERVER":
+            remain=message[1]
+            print(remain)
+            replied=Protocol.DecryptAndVerifyMessage(message[2])
+            publicKey=replied[0]
+            handshakeProgress = 2
+        elif msg=="ACKNOW":
+            acknowledge=Protocol.DecryptAndVerifyMessage(message[1])
+            publicKey=acknowledge[0]
+            handshakeProgress = 3
 
-        # 256 characters in libary generated diffie hellmans
-        if len(decryptedMessage) > 256 :
-            restOfMessage = decryptedMessage[257:(len(decryptedMessage)-1)]
-            # Authenticate by comparting rest of message with some other record of them?
-            
-            publicKey = decryptedMessage[0:256]
+        if not publicKey==None:
             sessionKey = self.diffieHellman.gen_shared_key(publicKey)
-            Protocol.SetSessionKey(self, sessionKey)
+            self.sessionKey = sessionKey
     
-        else: 
-            raise RuntimeError('Failed to authenticate')
+        #else: 
+            #raise RuntimeError('Failed to authenticate')
              
-        pass
-
-
-    # Setting the key for the current session
-    # TODO: MODIFY AS YOU SEEM FIT
-    def SetSessionKey(self, key):
-        self.sessionKey = key
-        pass
+        return handshakeProgress
 
 
     # Encrypting messages
     # TODO: IMPLEMENT ENCRYPTION WITH THE SESSION KEY (ALSO INCLUDE ANY NECESSARY INFO IN THE ENCRYPTED MESSAGE FOR INTEGRITY PROTECTION)
     # RETURN AN ERROR MESSAGE IF INTEGRITY VERITIFCATION OR AUTHENTICATION FAILS
     def EncryptAndProtectMessage(self, plain_text):
-        if self.sessionKey == None:
-            cipher = AES.new(hash(self.sharedSecret), AES.MODE_EAX)
-        else:
-            cipher = AES.new(self.sessionKey, AES.MODE_EAX)
-            
-        plainBinary = ''.join(format(ord(i), '08b') for i in plain_text)
-        cipher_text, tag = cipher.encrypt_and_digest(plainBinary)
+        cipher = AES.new(self.sessionKey, AES.MODE_EAX)
+        cipher_text, tag = cipher.encrypt_and_digest(plain_text)
         return cipher_text, tag
 
 
     # Decrypting and verifying messages
     # TODO: IMPLEMENT DECRYPTION AND INTEGRITY CHECK WITH THE SESSION KEY
     # RETURN AN ERROR MESSAGE IF INTEGRITY VERITIFCATION OR AUTHENTICATION FAILS
-    def DecryptAndVerifyMessage(self, cipher_text, tag):
+    def DecryptAndVerifyMessage(self, cipher_text):
         #will probs need to check hash for integrity
         try:
-            if self.sessionKey == None:
-                cipher = AES.new(hash(self.sharedSecret), AES.MODE_EAX) #in documentation, this also took in a nonce
-            else:
-                cipher = AES.new(self.sessionKey, AES.MODE_EAX) #in documentation, this also took in a nonce
-                
-            binary = cipher.decrypt_and_verify(cipher_text, tag)
-            plain_text = Protocol.BinaryToString(binary)
+            cipher = AES.new(self.sessionKey, AES.MODE_EAX) #in documentation, this also took in a nonce
+            plain_text = cipher.decrypt_and_verify(cipher_text[0], cipher_text[1])
             return plain_text
         except ValueError:
-            print("Tampering in encripted message was detected!")
+            print("Tampering in encrypted message was detected!")
         pass
-
-
-    # Takes in a value in binary and returns that value as a regular string
-    def BinaryToString(binary):
-        stringOut = ''
-        for i in range(0, len(binary), 7):
-            binarySection = binary[i:i + 7]
-            decimalVal = int(binarySection, 2)
-            stringOut = stringOut + chr(decimalVal)
-        
-        return stringOut

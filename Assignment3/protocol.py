@@ -2,6 +2,7 @@ import hashlib
 import pyDH
 import secrets
 from Cryptodome.Cipher import AES
+from Cryptodome.Util import Padding
 import base64
 
 class Protocol:
@@ -11,7 +12,6 @@ class Protocol:
         self.diffieHellman = pyDH.DiffieHellman()
         self.privateKey = self.diffieHellman.gen_public_key()
         self.publicKey = None
-        self.sharedSecret = 'HI689V8W8VPS1LA894FUX5U892'
         self.sessionKey = None
         self.Ra = 0
         self.Rb = 0
@@ -57,7 +57,6 @@ class Protocol:
         msg = str("ACK"+'|'+encrypt)
         return msg
 
-
     # Checking if a received message is part of your protocol (called from app.py)
     def IsMessagePartOfProtocol(self, message):
         try:
@@ -98,37 +97,40 @@ class Protocol:
                 handshakeProgress = 3
             else:
                 raise RuntimeError('Hash failed to authenticate')
-    
+
         else: 
             raise RuntimeError('Failed to authenticate')
         return handshakeProgress
 
     # Sets 256-bit session key using DH shared key
-    def SetSessionKey(self):
+    def SetSessionParams(self):
         dh = self.diffieHellman.gen_shared_key(self.publicKey)
         h = hashlib.sha3_256()
         h.update(bytes(dh,encoding='utf-8'))
         self.sessionKey = h.digest()
-        return
+
+        n = hashlib.sha3_256()
+        n.update(bytes(self.Ra,encoding='utf-8'))
+        n.update(bytes(self.Rb,encoding='utf-8'))
+        return str(h.digest())
 
     # Encrypting messages
     def EncryptAndProtectMessage(self, plain_text, R):
         cipher = AES.new(self.sessionKey, AES.MODE_EAX, nonce=bytes(R,encoding='utf-8'))
-        cipher_text, tag = cipher.encrypt_and_digest(plain_text)
+        cipher_text, tag = cipher.encrypt_and_digest(Padding.pad(plain_text,128))
         return str(base64.b64encode(cipher_text)+base64.b64encode(tag), "utf-8")
 
     # Decrypting and verifying messages
     def DecryptAndVerifyMessage(self, cipher_text, R):
-        #will probs need to check hash for integrity
         try:
             cipher = AES.new(self.sessionKey, AES.MODE_EAX, nonce=bytes(R,encoding='utf-8'))
             bytestream=bytes(cipher_text,encoding='utf-8')
             tag = base64.b64decode(bytestream[-24:])
             withoutTag = base64.b64decode(bytestream[:-24])
-            plaintext = cipher.decrypt_and_verify(withoutTag, tag)
+            plaintext = Padding.unpad(cipher.decrypt_and_verify(withoutTag, tag),128)
             return plaintext.decode()
         except ValueError:
-            print("Tampering in encrypted message was detected!")
+            print("Message Integrity Error")
         pass
 
     # Verify the hashes of the handshake

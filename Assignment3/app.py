@@ -51,6 +51,9 @@ class Assignment3VPN:
         
         # Creating a protocol object
         self.prtcl = Protocol()
+
+        # Create sessional input
+        self.nonce = None
      
     # Destructor     
     def __del__(self):
@@ -152,36 +155,39 @@ class Assignment3VPN:
                 
                 if self.secure:
                     self._AppendLog("Encrypted Message Received: {}".format(cipher_text.decode()))
-                    plain_text = self.prtcl.DecryptAndVerifyMessage(cipher_text.decode(),'password')
-                    self._AppendMessage("Other: {}".format(plain_text))
+                    plain_text = self.prtcl.DecryptAndVerifyMessage(cipher_text.decode(),self.nonce)
+                    self._AppendMessage("REMOTE: {}".format(plain_text))
 
                 # Checking if the received message is part of your protocol
                 # TODO: MODIFY THE INPUT ARGUMENTS AND LOGIC IF NECESSARY
                 elif self.prtcl.IsMessagePartOfProtocol(cipher_text) and not self.secure:
-                    # Disabling the button to prevent repeated clicks
-                    self.secureButton["state"] = "disabled"
-                    # Processing the protocol message
-                    handshakeProgress = self.prtcl.ProcessReceivedProtocolMessage(cipher_text)
-                    if handshakeProgress == 1:
-                        reply = self.prtcl.GetProtocolReplyMessage(self.sharedSecret.get())
-                        self._SendMessage(reply)
-                        self._AppendLog("CLT Received - Establishing Secure Session")
-                    elif handshakeProgress == 2:
-                        reply = self.prtcl.GetProtocolAckMessage()
-                        self._SendMessage(reply)
-                        self.secure=True
-                        self.prtcl.SetSessionKey()
-                        self._AppendLog("SVR Received - Secure Session Established")
-                    elif handshakeProgress == 3:
-                        self.secure=True
-                        self.prtcl.SetSessionKey()
-                        self._AppendLog("ACK Received - Secure Session Established")
+                    try:
+                        # Disabling the button to prevent repeated clicks
+                        self.secureButton["state"] = "disabled"
+                        # Processing the protocol message
+                        handshakeProgress = self.prtcl.ProcessReceivedProtocolMessage(cipher_text)
+                        if handshakeProgress == 1:
+                            reply = self.prtcl.GetProtocolReplyMessage(self.secretEntry.get())
+                            self._SendMessage(reply)
+                            self._AppendLog("CLT Received - Establishing Secure Session")
+                        elif handshakeProgress == 2:
+                            reply = self.prtcl.GetProtocolAckMessage()
+                            self._SendMessage(reply)
+                            self.secure=True
+                            self.nonce = self.prtcl.SetSessionParams()
+                            self._AppendLog("SVR Received - Secure Session Established")
+                        elif handshakeProgress == 3:
+                            self.secure=True
+                            self.nonce = self.prtcl.SetSessionParams()
+                            self._AppendLog("ACK Received - Secure Session Established")
+                    except:
+                        self._AppendLog("Handshake Incomplete: Failed to authenticate")
 
                 
                 # Otherwise, decrypting and showing the message
                 else:
-                    self._AppendLog("Unencrypted Message Received: {}".format(cipher_text.decode()))
-                    self._AppendMessage("Other: {}".format(cipher_text.decode()))
+                    self._AppendLog("Unencrypted Message Received")
+                    self._AppendMessage("REMOTE: {}".format(cipher_text.decode()))
                     
             except Exception as e:
                 self._AppendLog("RECEIVER_THREAD: Error receiving data: {}".format(str(e)))
@@ -192,7 +198,7 @@ class Assignment3VPN:
     def _SendMessage(self, message):
         plain_text = message
         if self.secure:
-            cipher_text = self.prtcl.EncryptAndProtectMessage(bytes(plain_text,encoding="utf-8"),'password')
+            cipher_text = self.prtcl.EncryptAndProtectMessage(bytes(plain_text,encoding="utf-8"),self.nonce)
             self.conn.send(cipher_text.encode())
         else:
             self.conn.send(plain_text.encode())
@@ -215,7 +221,7 @@ class Assignment3VPN:
         if  text != "" and self.s is not None:
             try:
                 self._SendMessage(text)
-                self._AppendMessage("You: {}".format(text))
+                self._AppendMessage("HOST: {}".format(text))
                 self.textMessage.set("")
             except Exception as e:
                 self._AppendLog("SENDING_MESSAGE: Error sending data: {}".format(str(e)))

@@ -32,6 +32,7 @@ class Protocol:
         h = hashlib.sha3_256()
         h.update(bytearray(sharedSecret, 'utf-8'))
         self.sessionKey = h.digest()
+
         self.Ra = secrets.token_hex(128)
         msg = str("CLIENT"+'|'+self.Ra)
         self.Msg1=msg
@@ -46,20 +47,20 @@ class Protocol:
         hM.update(bytes(str(self.Msg1),encoding="utf-8"))
         prevHash = hM.digest()
 
-        encrypt, tag = Protocol.EncryptAndProtectMessage(self,bytes(str(self.publicKey)+str(prevHash),encoding="utf-8"))
+        encrypt = Protocol.EncryptAndProtectMessage(self,bytes(str(self.publicKey)+str(prevHash),encoding="utf-8"),self.Ra)
         self.Rb = secrets.token_hex(128)
-        msg = str("SERVER"+'|'+self.Rb+'|'+str(encrypt)+str(tag))
+        msg = str("SERVER"+'|'+self.Rb+'|'+str(encrypt))
         self.Msg2=msg
         return msg
 
     def GetProtocolAckMessage(self):
-        h = hashlib.sha3_256()
-        h.update(bytearray("CLIENT",Ra, encoding="utf-8"))
-        ackMsg = bytearray(self.publicKey,encoding="utf-8")
-        dh=Protocol.EncryptAndProtectMessage()
-        helps = bytearray("ACKNOW",1, encoding="utf-8")
-        self.sessionKey = h.digest()
-        msg = str('sdf')
+        hM = hashlib.sha3_256()
+        hM.update(bytes(self.Msg1, encoding="utf-8"))
+        hM.update(bytes(self.Msg2, encoding="utf-8"))
+        prevHash = hM.digest()
+
+        encrypt = Protocol.EncryptAndProtectMessage(self,bytes(str(self.publicKey)+str(prevHash),encoding="utf-8"),self.Rb)
+        msg = str("ACK"+'|'+str(encrypt))
         return msg
 
 
@@ -88,19 +89,22 @@ class Protocol:
         elif split[0]=="SERVER":
             self.Msg2=str(message)
             self.Rb = split[1]
-            e = split[2]
             print("msg2")
-            print(e)
-            print(len(e))
-            replied=Protocol.DecryptAndVerifyMessage(self, e, self.Ra)
+            replied=Protocol.DecryptAndVerifyMessage(self, split[2], self.Ra)
             print(replied)
             publicKey=replied[0]
-            handshakeProgress = 2
+            if Protocol.hashCheck(self,replied[1],1):
+                handshakeProgress = 2
+            else:
+                raise RuntimeError('Failed to authenticate')
         elif split[0]=="ACKNOW":
             acknowledge=Protocol.DecryptAndVerifyMessage(self, split[1], self.Rb)
             print(acknowledge)
             publicKey=acknowledge[0]
-            handshakeProgress = 3
+            if Protocol.hashCheck(self,acknowledge[1],2):
+                handshakeProgress = 3
+            else:
+                raise RuntimeError('Failed to authenticate')
 
         if not publicKey==None:
             sessionKey = self.diffieHellman.gen_shared_key(publicKey)
@@ -118,11 +122,7 @@ class Protocol:
     def EncryptAndProtectMessage(self, plain_text, R):
         cipher = AES.new(self.sessionKey, AES.MODE_EAX, nonce=bytes(R))
         cipher_text, tag = cipher.encrypt_and_digest(plain_text)
-        print(cipher_text, tag)
-        a = base64.b64encode(cipher_text)
-        b = base64.b64encode(tag)
-        encrypt = str(a+b, "utf-8")
-        return encrypt
+        return str(base64.b64encode(cipher_text)+base64.b64encode(tag), "utf-8")
 
 
     # Decrypting and verifying messages
@@ -132,13 +132,21 @@ class Protocol:
         #will probs need to check hash for integrity
         try:
             cipher = AES.new(self.sessionKey, AES.MODE_EAX, nonce=bytes(R)) #in documentation, this also took in a nonce
-            b=bytes(cipher_text,encoding='utf-8')
-            tag = base64.b64decode(b[-24:])
-            withoutTag = base64.b64decode(b[:-24])
-            print(withoutTag, tag)
-            plain_text = cipher.decrypt_and_verify(withoutTag, tag)
-            print(plain_text)
-            return plain_text
+            bytestream=bytes(cipher_text,encoding='utf-8')
+            tag = base64.b64decode(bytestream[-24:])
+            withoutTag = base64.b64decode(bytestream[:-24])
+            return cipher.decrypt_and_verify(withoutTag, tag)
         except ValueError:
             print("Tampering in encrypted message was detected!")
         pass
+
+    def hashCheck(self, digest, stage):
+        h = hashlib.sha3_256()
+        h.update(bytes(str(self.Msg1),encoding="utf-8"))
+        if stage == 2:
+            h.update(bytes(str(self.Msg2),encoding="utf-8"))
+        
+        if digest == h.digest():
+            return True
+        else:
+            return False

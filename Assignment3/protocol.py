@@ -34,16 +34,17 @@ class Protocol:
     # Processing protocol message
     # TODO: IMPLMENET THE LOGIC (CALL SetSessionKey ONCE YOU HAVE THE KEY ESTABLISHED)
     # THROW EXCEPTION IF AUTHENTICATION FAILS
-    def ProcessReceivedProtocolMessage(self, message):
-        decryptedMessage = Protocol.DecryptAndVerifyMessage(self, message, 'tag')
-        #need to extract info from message and set boolean
-        containsPublicKey = True
-        #verify that hash of prev messages is good?
+    def ProcessReceivedProtocolMessage(self, message, tag):
+        decryptedMessage = DecryptAndVerifyMessage(self, message, tag)
+        
+        # need to check rest of message in order to authenticate, idk how
 
-        if containsPublicKey:
+
+        # 256 characters in libary generated diffie hellmans
+        if len(decryptedMessage) > 256 :
             publicKey = "this is temp string, to be extracted from message"
             sessionKey = self.diffieHellman.gen_shared_key(publicKey)
-            Protocol.SetSessionKey(self, sessionKey)
+            SetSessionKey(self, sessionKey)
     
         else: 
             raise RuntimeError('Failed to authenticate')

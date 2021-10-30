@@ -117,7 +117,7 @@ class Protocol:
     # Encrypting messages
     def EncryptAndProtectMessage(self, plain_text, R):
         cipher = AES.new(self.sessionKey, AES.MODE_EAX, nonce=bytes(R,encoding='utf-8'))
-        cipher_text, tag = cipher.encrypt_and_digest(Padding.pad(plain_text,128))
+        cipher_text, tag = cipher.encrypt_and_digest(Padding.pad(plain_text,16))
         return str(base64.b64encode(cipher_text)+base64.b64encode(tag), "utf-8")
 
     # Decrypting and verifying messages
@@ -127,7 +127,7 @@ class Protocol:
             bytestream=bytes(cipher_text,encoding='utf-8')
             tag = base64.b64decode(bytestream[-24:])
             withoutTag = base64.b64decode(bytestream[:-24])
-            plaintext = Padding.unpad(cipher.decrypt_and_verify(withoutTag, tag),128)
+            plaintext = Padding.unpad(cipher.decrypt_and_verify(withoutTag, tag),16)
             return plaintext.decode()
         except ValueError:
             print("Message Integrity Error")

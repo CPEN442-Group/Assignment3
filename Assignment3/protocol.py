@@ -1,8 +1,15 @@
+import hashlib
+import hmac
+import pyDH
+import pycryptodomex
+
 class Protocol:
     # Initializer (Called from app.py)
     # TODO: MODIFY ARGUMENTS AND LOGIC AS YOU SEEM FIT
     def __init__(self):
-        self._key = None
+        self.diffieHellman = pyDH.DiffieHellman()
+        self.publicKey = self.diffieHellman.gen_public_key()
+        self.sessionKey = None
         pass
 
 
@@ -28,7 +35,7 @@ class Protocol:
     # Setting the key for the current session
     # TODO: MODIFY AS YOU SEEM FIT
     def SetSessionKey(self, key):
-        self._key = key
+        self.sessionKey = key
         pass
 
 

@@ -62,8 +62,13 @@ class Protocol:
     # TODO: IMPLEMENT ENCRYPTION WITH THE SESSION KEY (ALSO INCLUDE ANY NECESSARY INFO IN THE ENCRYPTED MESSAGE FOR INTEGRITY PROTECTION)
     # RETURN AN ERROR MESSAGE IF INTEGRITY VERITIFCATION OR AUTHENTICATION FAILS
     def EncryptAndProtectMessage(self, plain_text):
-        cipher = AES.new(self.sessionKey, AES.MODE_EAX)
-        cipher_text, tag = cipher.encrypt_and_digest(plain_text)
+        if self.sessionKey == None:
+            cipher = AES.new(hash(self.sharedSecret), AES.MODE_EAX)
+        else:
+            cipher = AES.new(self.sessionKey, AES.MODE_EAX)
+            
+        plainBinary = ''.join(format(ord(i), '08b') for i in plain_text)
+        cipher_text, tag = cipher.encrypt_and_digest(plainBinary)
         return cipher_text, tag
 
 
@@ -73,9 +78,23 @@ class Protocol:
     def DecryptAndVerifyMessage(self, cipher_text, tag):
         #will probs need to check hash for integrity
         try:
-            cipher = AES.new(self.sessionKey, AES.MODE_EAX) #in documentation, this also took in a nonce
-            plain_text = cipher.decrypt_and_verify(cipher_text, tag)
+            if self.sessionKey == None:
+                cipher = AES.new(hash(self.sharedSecret), AES.MODE_EAX) #in documentation, this also took in a nonce
+            else:
+                cipher = AES.new(self.sessionKey, AES.MODE_EAX) #in documentation, this also took in a nonce
+                
+            binary = cipher.decrypt_and_verify(cipher_text, tag)
+            plain_text = BinaryToString(binary)
             return plain_text
         except ValueError:
-            print("Tampering in encrypted message was detected!")
+            print("Tampering in encripted message was detected!")
         pass
+
+
+    # Takes in a value in binary and returns that value as a regular string
+    def BinaryToString(binary):
+        stringOut = ''
+        for i in range(0, len(binary), 7):
+            binarySection = binary[i:i + 7]
+            decimalVal = = int(binarySection, 2)
+            stringOut = stringOut + chr(decimalVal)

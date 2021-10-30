@@ -35,7 +35,7 @@ class Protocol:
     # TODO: IMPLMENET THE LOGIC (CALL SetSessionKey ONCE YOU HAVE THE KEY ESTABLISHED)
     # THROW EXCEPTION IF AUTHENTICATION FAILS
     def ProcessReceivedProtocolMessage(self, message, tag):
-        decryptedMessage = DecryptAndVerifyMessage(self, message, tag)
+        decryptedMessage = Protocol.DecryptAndVerifyMessage(self, message, tag)
         
         # need to check rest of message in order to authenticate, idk how
 
@@ -44,7 +44,7 @@ class Protocol:
         if len(decryptedMessage) > 256 :
             publicKey = "this is temp string, to be extracted from message"
             sessionKey = self.diffieHellman.gen_shared_key(publicKey)
-            SetSessionKey(self, sessionKey)
+            Protocol.SetSessionKey(self, sessionKey)
     
         else: 
             raise RuntimeError('Failed to authenticate')
@@ -85,7 +85,7 @@ class Protocol:
                 cipher = AES.new(self.sessionKey, AES.MODE_EAX) #in documentation, this also took in a nonce
                 
             binary = cipher.decrypt_and_verify(cipher_text, tag)
-            plain_text = BinaryToString(binary)
+            plain_text = Protocol.BinaryToString(binary)
             return plain_text
         except ValueError:
             print("Tampering in encripted message was detected!")

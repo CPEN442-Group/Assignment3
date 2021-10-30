@@ -107,7 +107,8 @@ class Protocol:
         #will probs need to check hash for integrity
         try:
             cipher = AES.new(self.sessionKey, AES.MODE_EAX) #in documentation, this also took in a nonce
-            plain_text = cipher.decrypt_and_verify(cipher_text[0], cipher_text[1])
+            withoutTag = cipher_text[0:len(cipher_text)-129]
+            plain_text = cipher.decrypt_and_verify(withoutTag, cipher_text[len(cipher_text)-129:])
             return plain_text
         except ValueError:
             print("Tampering in encrypted message was detected!")

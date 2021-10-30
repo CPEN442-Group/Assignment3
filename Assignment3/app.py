@@ -1,11 +1,8 @@
 # system imports
-from mmap import ACCESS_DEFAULT
-import sys
 import socket
 from threading import Thread
 import pygubu
 import tkinter as tk
-import tkinter.ttk as ttk
 from tkinter import messagebox
 
 # local import from "protocol.py"
@@ -152,11 +149,15 @@ class Assignment3VPN:
                 if cipher_text == None or len(cipher_text) == 0:
                     self._AppendLog("RECEIVER_THREAD: Received empty message")
                     break
+                
+                if self.secure:
+                    self._AppendLog("Encrypted Message Received: {}".format(cipher_text.decode()))
+                    plain_text = self.prtcl.DecryptAndVerifyMessage(cipher_text.decode(),'password')
+                    self._AppendMessage("Other: {}".format(plain_text))
 
-                self._AppendMessage("Other: {}".format(cipher_text.decode()))
                 # Checking if the received message is part of your protocol
                 # TODO: MODIFY THE INPUT ARGUMENTS AND LOGIC IF NECESSARY
-                if self.prtcl.IsMessagePartOfProtocol(cipher_text) and not self.secure:
+                elif self.prtcl.IsMessagePartOfProtocol(cipher_text) and not self.secure:
                     # Disabling the button to prevent repeated clicks
                     self.secureButton["state"] = "disabled"
                     # Processing the protocol message
@@ -164,21 +165,23 @@ class Assignment3VPN:
                     if handshakeProgress == 1:
                         reply = self.prtcl.GetProtocolReplyMessage(self.sharedSecret.get())
                         self._SendMessage(reply)
+                        self._AppendLog("CLT Received - Establishing Secure Session")
                     elif handshakeProgress == 2:
                         reply = self.prtcl.GetProtocolAckMessage()
                         self._SendMessage(reply)
+                        self.secure=True
+                        self.prtcl.SetSessionKey()
+                        self._AppendLog("SVR Received - Secure Session Established")
                     elif handshakeProgress == 3:
                         self.secure=True
+                        self.prtcl.SetSessionKey()
+                        self._AppendLog("ACK Received - Secure Session Established")
 
                 
-                if self.secure:
-                    self.prtcl.DecryptAndVerifyMessage(cipher_text)
-                    self._AppendMessage("Other: {}".format(plain_text.decode()))
                 # Otherwise, decrypting and showing the message
                 else:
-                    val=1
-                    #plain_text = cipher_text
-                    #self._AppendMessage("Other: {}".format(plain_text.decode()))
+                    self._AppendLog("Unencrypted Message Received: {}".format(cipher_text.decode()))
+                    self._AppendMessage("Other: {}".format(cipher_text.decode()))
                     
             except Exception as e:
                 self._AppendLog("RECEIVER_THREAD: Error receiving data: {}".format(str(e)))
@@ -189,8 +192,8 @@ class Assignment3VPN:
     def _SendMessage(self, message):
         plain_text = message
         if self.secure:
-            cipher_text, tag = self.prtcl.EncryptAndProtectMessage(plain_text)
-            self.conn.send(cipher_text.encode(),tag.encode())
+            cipher_text = self.prtcl.EncryptAndProtectMessage(bytes(plain_text,encoding="utf-8"),'password')
+            self.conn.send(cipher_text.encode())
         else:
             self.conn.send(plain_text.encode())
         

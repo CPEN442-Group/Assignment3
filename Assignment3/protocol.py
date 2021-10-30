@@ -15,11 +15,13 @@ class Protocol:
         self.publicKey = self.diffieHellman.gen_public_key()
         self.sharedSecret = 'HI689V8W8VPS1LA894FUX5U892'
         self.sessionKey = get_random_bytes(16)
+        self.Ra = 0
+        self.Rb = 0
         self.Msg1 = None
         self.Msg2 = None
 
-        a = Protocol.EncryptAndProtectMessage(self,bytes('testmsg',encoding='utf-8'))
-        x = Protocol.DecryptAndVerifyMessage(self, a)
+        a = Protocol.EncryptAndProtectMessage(self,bytes('testmsg',encoding='utf-8'), 20)
+        x = Protocol.DecryptAndVerifyMessage(self, a, 20)
 
         pass
 
@@ -30,7 +32,8 @@ class Protocol:
         h = hashlib.sha3_256()
         h.update(bytearray(sharedSecret, 'utf-8'))
         self.sessionKey = h.digest()
-        msg = str("CLIENT"+'|'+secrets.token_hex(128))
+        self.Ra = secrets.token_hex(128)
+        msg = str("CLIENT"+'|'+self.Ra)
         self.Msg1=msg
         return msg
 
@@ -44,7 +47,8 @@ class Protocol:
         prevHash = hM.digest()
 
         encrypt, tag = Protocol.EncryptAndProtectMessage(self,bytes(str(self.publicKey)+str(prevHash),encoding="utf-8"))
-        msg = str("SERVER"+'|'+secrets.token_hex(128)+'|'+str(encrypt)+str(tag))
+        self.Rb = secrets.token_hex(128)
+        msg = str("SERVER"+'|'+self.Rb+'|'+str(encrypt)+str(tag))
         self.Msg2=msg
         return msg
 
@@ -79,21 +83,21 @@ class Protocol:
         
         if split[0]=="CLIENT":
             self.Msg1=str(message)
-            Ra = split[1]
+            self.Ra = split[1]
             handshakeProgress = 1
         elif split[0]=="SERVER":
             self.Msg2=str(message)
-            Rb = split[1]
+            self.Rb = split[1]
             e = split[2]
             print("msg2")
             print(e)
             print(len(e))
-            replied=Protocol.DecryptAndVerifyMessage(self, e)
+            replied=Protocol.DecryptAndVerifyMessage(self, e, self.Ra)
             print(replied)
             publicKey=replied[0]
             handshakeProgress = 2
         elif split[0]=="ACKNOW":
-            acknowledge=Protocol.DecryptAndVerifyMessage(self, bytes(split[1], encoding="utf-8"))
+            acknowledge=Protocol.DecryptAndVerifyMessage(self, split[1], self.Rb)
             print(acknowledge)
             publicKey=acknowledge[0]
             handshakeProgress = 3
@@ -111,8 +115,8 @@ class Protocol:
     # Encrypting messages
     # TODO: IMPLEMENT ENCRYPTION WITH THE SESSION KEY (ALSO INCLUDE ANY NECESSARY INFO IN THE ENCRYPTED MESSAGE FOR INTEGRITY PROTECTION)
     # RETURN AN ERROR MESSAGE IF INTEGRITY VERITIFCATION OR AUTHENTICATION FAILS
-    def EncryptAndProtectMessage(self, plain_text):
-        cipher = AES.new(self.sessionKey, AES.MODE_EAX)
+    def EncryptAndProtectMessage(self, plain_text, R):
+        cipher = AES.new(self.sessionKey, AES.MODE_EAX, nonce=bytes(R))
         cipher_text, tag = cipher.encrypt_and_digest(plain_text)
         print(cipher_text, tag)
         a = base64.b64encode(cipher_text)
@@ -124,10 +128,10 @@ class Protocol:
     # Decrypting and verifying messages
     # TODO: IMPLEMENT DECRYPTION AND INTEGRITY CHECK WITH THE SESSION KEY
     # RETURN AN ERROR MESSAGE IF INTEGRITY VERITIFCATION OR AUTHENTICATION FAILS
-    def DecryptAndVerifyMessage(self, cipher_text):
+    def DecryptAndVerifyMessage(self, cipher_text, R):
         #will probs need to check hash for integrity
         try:
-            cipher = AES.new(self.sessionKey, AES.MODE_EAX) #in documentation, this also took in a nonce
+            cipher = AES.new(self.sessionKey, AES.MODE_EAX, nonce=bytes(R)) #in documentation, this also took in a nonce
             b=bytes(cipher_text,encoding='utf-8')
             tag = base64.b64decode(b[-24:])
             withoutTag = base64.b64decode(b[:-24])

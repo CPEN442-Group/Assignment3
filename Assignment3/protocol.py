@@ -4,6 +4,8 @@ import pyDH
 import secrets
 import Cryptodome
 from Cryptodome.Cipher import AES
+from Cryptodome.Random import get_random_bytes
+import base64
 
 class Protocol:
     # Initializer (Called from app.py)
@@ -12,9 +14,13 @@ class Protocol:
         self.diffieHellman = pyDH.DiffieHellman()
         self.publicKey = self.diffieHellman.gen_public_key()
         self.sharedSecret = 'HI689V8W8VPS1LA894FUX5U892'
-        self.sessionKey = None
+        self.sessionKey = get_random_bytes(16)
         self.Msg1 = None
         self.Msg2 = None
+
+        a = Protocol.EncryptAndProtectMessage(self,bytes('testmsg',encoding='utf-8'))
+        x = Protocol.DecryptAndVerifyMessage(self, a)
+
         pass
 
 
@@ -108,7 +114,11 @@ class Protocol:
     def EncryptAndProtectMessage(self, plain_text):
         cipher = AES.new(self.sessionKey, AES.MODE_EAX)
         cipher_text, tag = cipher.encrypt_and_digest(plain_text)
-        return cipher_text, tag
+        print(cipher_text, tag)
+        a = base64.b64encode(cipher_text)
+        b = base64.b64encode(tag)
+        encrypt = str(a+b, "utf-8")
+        return encrypt
 
 
     # Decrypting and verifying messages
@@ -118,8 +128,12 @@ class Protocol:
         #will probs need to check hash for integrity
         try:
             cipher = AES.new(self.sessionKey, AES.MODE_EAX) #in documentation, this also took in a nonce
-            withoutTag = cipher_text[0:len(cipher_text)-129]
-            plain_text = cipher.decrypt_and_verify(withoutTag, cipher_text[len(cipher_text)-129:])
+            b=bytes(cipher_text,encoding='utf-8')
+            tag = base64.b64decode(b[-24:])
+            withoutTag = base64.b64decode(b[:-24])
+            print(withoutTag, tag)
+            plain_text = cipher.decrypt_and_verify(withoutTag, tag)
+            print(plain_text)
             return plain_text
         except ValueError:
             print("Tampering in encrypted message was detected!")

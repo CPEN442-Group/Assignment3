@@ -1,8 +1,9 @@
 import hashlib
 import hmac
 import pyDH
-import Crypto
-from Crypto.Cipher import AES
+import secrets
+import Cryptodome
+from Cryptodome.Cipher import AES
 
 class Protocol:
     # Initializer (Called from app.py)
@@ -18,20 +19,23 @@ class Protocol:
     # Creating the initial message of your protocol (to be send to the other party to bootstrap the protocol)
     # TODO: IMPLEMENT THE LOGIC (MODIFY THE INPUT ARGUMENTS AS YOU SEEM FIT)
     def GetProtocolInitiationMessage(self):
-        return "CLIENT"
+        initialize = ["CLIENT"]
+        initialize.append(secrets.token_bytes(128))
+        return initialize
 
 
     # Checking if a received message is part of your protocol (called from app.py)
     # TODO: IMPLMENET THE LOGIC
     def IsMessagePartOfProtocol(self, message):
+        if message[0]=="CLIENT":
+            return True
         return False
-
 
     # Processing protocol message
     # TODO: IMPLMENET THE LOGIC (CALL SetSessionKey ONCE YOU HAVE THE KEY ESTABLISHED)
     # THROW EXCEPTION IF AUTHENTICATION FAILS
     def ProcessReceivedProtocolMessage(self, message):
-        decryptedMessage = DecryptAndVerifyMessage(self, message, 'tag')
+        decryptedMessage = Protocol.DecryptAndVerifyMessage(self, message, 'tag')
         #need to extract info from message and set boolean
         containsPublicKey = True
         #verify that hash of prev messages is good?
@@ -39,7 +43,7 @@ class Protocol:
         if containsPublicKey:
             publicKey = "this is temp string, to be extracted from message"
             sessionKey = self.diffieHellman.gen_shared_key(publicKey)
-            SetSessionKey(self, sessionKey)
+            Protocol.SetSessionKey(self, sessionKey)
     
         else: 
             raise RuntimeError('Failed to authenticate')
@@ -59,7 +63,7 @@ class Protocol:
     # RETURN AN ERROR MESSAGE IF INTEGRITY VERITIFCATION OR AUTHENTICATION FAILS
     def EncryptAndProtectMessage(self, plain_text):
         cipher = AES.new(self.sessionKey, AES.MODE_EAX)
-        cipher_text, tag = cipher.encrypt_and_digest(data)
+        cipher_text, tag = cipher.encrypt_and_digest(plain_text)
         return cipher_text, tag
 
 
@@ -69,9 +73,9 @@ class Protocol:
     def DecryptAndVerifyMessage(self, cipher_text, tag):
         #will probs need to check hash for integrity
         try:
-            cipher = AES.new(key, AES.MODE_EAX) #in documentation, this also took in a nonce
+            cipher = AES.new(self.sessionKey, AES.MODE_EAX) #in documentation, this also took in a nonce
             plain_text = cipher.decrypt_and_verify(cipher_text, tag)
             return plain_text
         except ValueError:
-            print("Tampering in encripted message was detected!")
+            print("Tampering in encrypted message was detected!")
         pass

@@ -53,7 +53,7 @@ class Assignment3VPN:
         # Creating a protocol object
         self.prtcl = Protocol()
      
-    # Distructor     
+    # Destructor     
     def __del__(self):
         # Closing the network socket
         if self.s is not None:
@@ -85,7 +85,8 @@ class Assignment3VPN:
         if self._CreateTCPConnection():
             if self.mode.get() == 0:
                 # enable the secure and send buttons
-                self.secureButton["state"] = "enable"
+                if self.mode == 0:
+                    self.secureButton["state"] = "enable"
                 self.sendButton["state"] = "enable"
         else:
             # Change button states
